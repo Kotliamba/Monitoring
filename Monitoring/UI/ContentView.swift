@@ -12,44 +12,64 @@ struct ContentView: View {
     @State private var isToggleOn = false
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                Section("Memory usage") {
-                    VStack {
-                        InfoCell(title: "Всего памяти", value: monitoringModel.allStorage)
-                        InfoCell(title: "Свободно места", value: monitoringModel.freeStorage)
-                        InfoCell(title: "Всего оперативной памяти", value: monitoringModel.totalRamValue)
-                    }
-                }
-                Section("CPU info") {
-                    VStack {
-                        InfoCell(title: "Всего ядер", value: monitoringModel.cores)
-                        InfoCell(title: "Активно ядер", value: monitoringModel.activeCores)
-                        InfoCell(title: "Загруженность процессора", value: monitoringModel.cpu)
-                    }
-                }
-                Section("App info") {
-                    VStack {
-                        InfoCell(title: "id процесса", value: monitoringModel.processId)
-                        InfoCell(title: "Имя процесса", value: monitoringModel.processName)
-                    }
-                }
-                Section("System info") {
-                    VStack {
-                        InfoCell(title: "Версия ПО", value: monitoringModel.iOSVersion)
-                        InfoCell(title: "Время с последнего включения", value: monitoringModel.lastRestartTime)
-                        InfoCell(title: "Температура", value: monitoringModel.thermalState)
-                    }
-                }
-                Spacer()
-                Toggle(isOn:$isToggleOn) {
-                    Text("Is updating data")
-                }
-                .onChange(of: isToggleOn) { _ in monitoringModel.getData() }
-                .onAppear { monitoringModel.updateData() }
+        VStack {
+            Text("Технические характеристики")
+                .fontWeight(.bold)
+            Toggle(isOn:$isToggleOn) {
+                Text("Обновление включено")
             }
-            .padding(20)
+            .padding(10)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .frame(height: 1)
+                    .background(.gray)
+            }
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 20) {
+                    Section("Использование памяти") {
+                        VStack {
+                            InfoCell(title: "Всего памяти", value: monitoringModel.allStorage)
+                            InfoCell(title: "Свободно места", value: monitoringModel.freeStorage)
+                            InfoCell(title: "Всего оперативной памяти", value: monitoringModel.totalRamValue)
+                            InfoCell(title: "Используемая оперативная память", value: monitoringModel.usedRamValue)
+                        }
+                    }
+                    Section("CPU") {
+                        VStack {
+                            InfoCell(title: "Всего ядер", value: monitoringModel.cores)
+                            InfoCell(title: "Активно ядер", value: monitoringModel.activeCores)
+                            InfoCell(title: "Загруженность процессора", value: monitoringModel.cpu)
+                        }
+                    }
+                    Section("Процессы") {
+                        VStack {
+                            InfoCell(title: "id процесса", value: monitoringModel.processId)
+                            InfoCell(title: "Имя процесса", value: monitoringModel.processName)
+                        }
+                    }
+                    Section("Система") {
+                        VStack {
+                            InfoCell(title: "Имя хоста", value: monitoringModel.userName)
+                            InfoCell(title: "Устройство", value: monitoringModel.modelName)
+                            InfoCell(title: "Версия ПО", value: monitoringModel.iOSVersion)
+                            InfoCell(title: "Время с последнего включения", value: monitoringModel.lastRestartTime)
+                            InfoCell(title: "Температура", value: monitoringModel.thermalState)
+                        }
+                    }
+                    Section("Батерея") {
+                        VStack {
+                            InfoCell(title: "Уровень заряда", value: monitoringModel.batteryLevel)
+                            InfoCell(title: "Состояние батареи", value: monitoringModel.batteryState)
+                            InfoCell(title: "Режим сбережения", value: monitoringModel.isLowPowerEnabled)
+                        }
+                    }
+                    .onChange(of: isToggleOn) { _ in monitoringModel.enablePublishing() }
+                    .onAppear { monitoringModel.updateData() }
+                }
+            }
         }
+        .padding(.horizontal, 20)
+        .padding(.top, 40)
     }
 }
 

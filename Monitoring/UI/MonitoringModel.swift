@@ -7,41 +7,46 @@
 
 import Foundation
 import Combine
+import UIKit
 
 final class MonitoringModel: ObservableObject {
     
     private enum Constants {
         
         static let dot = "."
+        static let publishDelay = 0.5
     }
     
     @Published var allStorage = ""
     @Published var freeStorage = ""
     @Published var totalRamValue = ""
+    @Published var usedRamValue = ""
     @Published var cores = ""
     @Published var activeCores = ""
     @Published var lastRestartTime = ""
     @Published var thermalState = ""
     @Published var iOSVersion = ""
+    @Published var userName = ""
+    @Published var modelName = ""
     @Published var build = ""
     @Published var processId = ""
     @Published var processName = ""
     @Published var cpu = ""
+    @Published var batteryLevel = ""
+    @Published var batteryState = ""
+    @Published var isLowPowerEnabled = ""
     
-    var throttleValue = 0.5
     private var cancellable: AnyCancellable?
+    private var formatter = MeasurementFormatter()
     
-    func getData() {
-        if (cancellable != nil) {
-            cancellable = nil
-        } else {
-            cancellable = Timer
-                .publish(every: 0.5, on: .main, in: .common)
-                .autoconnect()
-                .sink { [weak self] _ in
-                    self?.updateData()
-                }
-        }
+    init() {
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        setupFormatter()
+        updateData()
+    }
+    
+    func enablePublishing() {
+        setupPublisher()
     }
     
     func updateData() {
@@ -53,39 +58,59 @@ final class MonitoringModel: ObservableObject {
         getSystemVersion()
         getProcessInfo()
         getCPUInfo()
+        getBatteryInfo()
     }
     
     func stopUpdating() {
         cancellable?.cancel()
     }
     
-    func getStorage() {
+    private func getStorage() {
         guard
             let totalSpaceInBytes = FileManagerUility.getFileSize(for: .systemSize),
             let freeSpaceInBytes = FileManagerUility.getFileSize(for: .systemFreeSize)
         else {
             return
         }
-        let totalSpace = Measurement(value: totalSpaceInBytes, unit: UnitInformationStorage.bytes)
-        let freeSpace = Measurement(value: freeSpaceInBytes, unit: UnitInformationStorage.bytes)
-        
-        allStorage = totalSpace.converted(to: .gigabytes).formatted()
-        freeStorage = freeSpace.converted(to: .gigabytes).formatted()
+        let totalSpace = Measurement(value: totalSpaceInBytes, unit: UnitInformationStorage.bytes).converted(to: .gigabytes)
+        let freeSpace = Measurement(value: freeSpaceInBytes, unit: UnitInformationStorage.bytes).converted(to: .gigabytes)
+
+        allStorage = formatter.string(from: totalSpace)
+        freeStorage = formatter.string(from: freeSpace)
     }
     
-    func getRamValue() {
-        var totalRam = Measurement(value: Double(ProcessInfo.processInfo.physicalMemory), unit: UnitInformationStorage.bytes)
+    private func getRamValue() {
+        let totalRam = Measurement(
+            value: Double(ProcessInfo.processInfo.physicalMemory),
+            unit: UnitInformationStorage.bytes
+        ).converted(to: .gigabytes)
         
-        totalRam.convert(to: .gigabytes)
-        totalRamValue = totalRam.formatted(.measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(1))))
+        totalRamValue = formatter.string(from: totalRam)
+        
+        getUsedRam()
     }
     
-    func getCoreInfo() {
+    private func getUsedRam() {
+        var taskInfo = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info>.size) / 4
+        let result: kern_return_t = withUnsafeMutablePointer(to: &taskInfo) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        
+        if result == KERN_SUCCESS {
+            let used = Measurement(value: Double(taskInfo.phys_footprint), unit: UnitInformationStorage.bytes).converted(to: .megabytes)
+            usedRamValue = formatter.string(from: used)
+        }
+    }
+    
+    private func getCoreInfo() {
         cores = ProcessInfo.processInfo.processorCount.formatted()
         activeCores = ProcessInfo.processInfo.activeProcessorCount.formatted()
     }
     
-    func getSystemInfo() {
+    private func getSystemInfo() {
         let restartInterval = ProcessInfo.processInfo.systemUptime
         let formatter = DateComponentsFormatter()
         formatter.allowedUnits = [.hour, .minute, .second]
@@ -94,9 +119,12 @@ final class MonitoringModel: ObservableObject {
             return
         }
         self.lastRestartTime = lastRestartTime
+        
+        userName = ProcessInfo.processInfo.hostName
+        modelName = UIDevice().type.rawValue
     }
     
-    func getThermalInfo() {
+    private func getThermalInfo() {
         switch ProcessInfo.processInfo.thermalState {
         case .nominal:
             thermalState = "Normal"
@@ -111,7 +139,7 @@ final class MonitoringModel: ObservableObject {
         }
     }
     
-    func getSystemVersion() {
+    private func getSystemVersion() {
         let major = ProcessInfo.processInfo.operatingSystemVersion.majorVersion.description
         let minor = ProcessInfo.processInfo.operatingSystemVersion.minorVersion.description
         let path = ProcessInfo.processInfo.operatingSystemVersion.patchVersion.description
@@ -120,65 +148,49 @@ final class MonitoringModel: ObservableObject {
         build = ProcessInfo.processInfo.operatingSystemVersionString
     }
     
-    func getProcessInfo() {
+    private func getProcessInfo() {
         processId = ProcessInfo.processInfo.processIdentifier.description
         processName = ProcessInfo.processInfo.processName
     }
     
-    func getCPUInfo() {
-        cpu = cpuUsage().description
+    private func getCPUInfo() {
+        cpu = String(format: "%.1f",cpuUsage()) + " %"
     }
     
-    private func cpuUsage() -> Double {
-        // Сложный код был украден отсюда
-        // https://stackoverflow.com/questions/8223348/ios-get-cpu-usage-from-application
-        var kr: kern_return_t
-        var task_info_count: mach_msg_type_number_t
-
-        task_info_count = mach_msg_type_number_t(TASK_INFO_MAX)
-        var tinfo = [integer_t](repeating: 0, count: Int(task_info_count))
-
-        kr = task_info(mach_task_self_, task_flavor_t(TASK_BASIC_INFO), &tinfo, &task_info_count)
-        if kr != KERN_SUCCESS {
-            return -1
-        }
-
-        var thread_list: thread_act_array_t? = UnsafeMutablePointer(mutating: [thread_act_t]())
-        var thread_count: mach_msg_type_number_t = 0
-        defer {
-            if let thread_list = thread_list {
-                vm_deallocate(mach_task_self_, vm_address_t(UnsafePointer(thread_list).pointee), vm_size_t(thread_count))
+    func cpuUsage() -> Double {
+        var totalUsageOfCPU: Double = 0.0
+        var threadsList: thread_act_array_t?
+        var threadsCount = mach_msg_type_number_t(0)
+        let threadsResult = withUnsafeMutablePointer(to: &threadsList) {
+            return $0.withMemoryRebound(to: thread_act_array_t?.self, capacity: 1) {
+                task_threads(mach_task_self_, $0, &threadsCount)
             }
         }
-
-        kr = task_threads(mach_task_self_, &thread_list, &thread_count)
-
-        if kr != KERN_SUCCESS {
-            return -1
-        }
-
-        var tot_cpu: Double = 0
-
-        if let thread_list = thread_list {
-
-            for j in 0 ..< Int(thread_count) {
-                var thread_info_count = mach_msg_type_number_t(THREAD_INFO_MAX)
-                var thinfo = [integer_t](repeating: 0, count: Int(thread_info_count))
-                kr = thread_info(thread_list[j], thread_flavor_t(THREAD_BASIC_INFO),
-                                 &thinfo, &thread_info_count)
-                if kr != KERN_SUCCESS {
-                    return -1
+        
+        if threadsResult == KERN_SUCCESS, let threadsList = threadsList {
+            for index in 0..<threadsCount {
+                var threadInfo = thread_basic_info()
+                var threadInfoCount = mach_msg_type_number_t(THREAD_INFO_MAX)
+                let infoResult = withUnsafeMutablePointer(to: &threadInfo) {
+                    $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
+                        thread_info(threadsList[Int(index)], thread_flavor_t(THREAD_BASIC_INFO), $0, &threadInfoCount)
+                    }
                 }
-
-                let threadBasicInfo = convertThreadInfoToThreadBasicInfo(thinfo)
-
-                if threadBasicInfo.flags != TH_FLAGS_IDLE {
-                    tot_cpu += (Double(threadBasicInfo.cpu_usage) / Double(TH_USAGE_SCALE)) * 100.0
+                
+                guard infoResult == KERN_SUCCESS else {
+                    break
                 }
-            } // for each thread
+                
+                let threadBasicInfo = threadInfo as thread_basic_info
+                if threadBasicInfo.flags & TH_FLAGS_IDLE == 0 {
+                    totalUsageOfCPU = (totalUsageOfCPU + (Double(threadBasicInfo.cpu_usage) / Double(TH_USAGE_SCALE) * 100.0))
+                }
+            }
         }
-
-        return tot_cpu
+        
+        vm_deallocate(mach_task_self_, vm_address_t(UInt(bitPattern: threadsList)), vm_size_t(Int(threadsCount) * MemoryLayout<thread_t>.stride))
+        
+        return totalUsageOfCPU
     }
 
     private func convertThreadInfoToThreadBasicInfo(_ threadInfo: [integer_t]) -> thread_basic_info {
@@ -194,6 +206,71 @@ final class MonitoringModel: ObservableObject {
         result.sleep_time = threadInfo[9]
 
         return result
+    }
+    
+    private func setupFormatter() {
+        formatter.numberFormatter.maximumFractionDigits = 1
+        formatter.numberFormatter.roundingMode = .up
+    }
+    
+    private func setupPublisher() {
+        if (cancellable != nil) {
+            cancellable = nil
+        } else {
+            cancellable = Timer
+                .publish(every: Constants.publishDelay, on: .main, in: .common)
+                .autoconnect()
+                .sink { [weak self] _ in
+                    self?.updateData()
+                }
+        }
+    }
+    
+    private func getBatteryInfo() {
+        batteryLevel = (UIDevice.current.batteryLevel * 100).formatted() + " %"
+        
+        switch UIDevice.current.batteryState {
+        case .unknown:
+            batteryState = "Неизвестно"
+        case .unplugged:
+            batteryState = "Питание от батареи"
+        case .charging:
+            batteryState = "Заряжается"
+        case .full:
+            batteryState = "Полностью заряжен"
+        @unknown default:
+            batteryState = "Неизвестно"
+        }
+        
+        isLowPowerEnabled = ProcessInfo.processInfo.isLowPowerModeEnabled ? "Вкл" : "Выкл"
+    }
+    
+    private func getModelName() -> String {
+        let name: String
+        var mib  = [CTL_HW, HW_MODEL]
+
+        // Max model name size not defined by sysctl. Instead we use io_name_t
+        // via I/O Kit which can also get the model name
+        var size = MemoryLayout<io_name_t>.size
+
+        let ptr    = UnsafeMutablePointer<io_name_t>.allocate(capacity: 1)
+        let result = sysctl(&mib, u_int(mib.count), ptr, &size, nil, 0)
+
+
+        if result == 0 { name = String(cString: UnsafeRawPointer(ptr).assumingMemoryBound(to: CChar.self)) }
+        else           { name = String() }
+
+
+        ptr.deallocate()
+
+        #if DEBUG
+            if result != 0 {
+                print("ERROR - \(#file):\(#function) - errno = "
+                        + "\(result)")
+            }
+        #endif
+
+        return name
     }
 }
 
