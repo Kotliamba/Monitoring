@@ -5,7 +5,6 @@
 //  Created by Чаусов Николай on 18.11.2022.
 //
 
-import Foundation
 import Combine
 import UIKit
 
@@ -14,6 +13,7 @@ final class MonitoringModel: ObservableObject {
     private enum Constants {
         
         static let dot = "."
+        static let percent = " %"
         static let publishDelay = 0.5
     }
     
@@ -28,6 +28,7 @@ final class MonitoringModel: ObservableObject {
     @Published var iOSVersion = ""
     @Published var userName = ""
     @Published var modelName = ""
+    @Published var brightness = ""
     @Published var build = ""
     @Published var processId = ""
     @Published var processName = ""
@@ -59,6 +60,7 @@ final class MonitoringModel: ObservableObject {
         getProcessInfo()
         getCPUInfo()
         getBatteryInfo()
+        getScreenBrightness()
     }
     
     func stopUpdating() {
@@ -154,7 +156,7 @@ final class MonitoringModel: ObservableObject {
     }
     
     private func getCPUInfo() {
-        cpu = String(format: "%.1f",cpuUsage()) + " %"
+        cpu = String(format: "%.1f",cpuUsage()) + Constants.percent
     }
     
     func cpuUsage() -> Double {
@@ -227,7 +229,7 @@ final class MonitoringModel: ObservableObject {
     }
     
     private func getBatteryInfo() {
-        batteryLevel = (UIDevice.current.batteryLevel * 100).formatted() + " %"
+        batteryLevel = (UIDevice.current.batteryLevel * 100).formatted() + Constants.percent
         
         switch UIDevice.current.batteryState {
         case .unknown:
@@ -271,6 +273,10 @@ final class MonitoringModel: ObservableObject {
         #endif
 
         return name
+    }
+    
+    private func getScreenBrightness() {
+        brightness = String(format: "%.0f", UIScreen.main.brightness * 100) + Constants.percent
     }
 }
 

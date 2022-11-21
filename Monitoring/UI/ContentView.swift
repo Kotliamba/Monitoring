@@ -54,6 +54,7 @@ struct ContentView: View {
                             InfoCell(title: "Версия ПО", value: monitoringModel.iOSVersion)
                             InfoCell(title: "Время с последнего включения", value: monitoringModel.lastRestartTime)
                             InfoCell(title: "Температура", value: monitoringModel.thermalState)
+                            InfoCell(title: "Яркость экрана", value: monitoringModel.brightness)
                         }
                     }
                     Section("Батерея") {
