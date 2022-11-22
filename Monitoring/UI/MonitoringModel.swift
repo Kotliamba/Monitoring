@@ -13,32 +13,35 @@ final class MonitoringModel: ObservableObject {
     private enum Constants {
         
         static let dot = "."
+        static let empty = ""
         static let percent = " %"
         static let publishDelay = 0.5
     }
     
-    @Published var allStorage = ""
-    @Published var freeStorage = ""
-    @Published var totalRamValue = ""
-    @Published var usedRamValue = ""
-    @Published var cores = ""
-    @Published var activeCores = ""
-    @Published var lastRestartTime = ""
-    @Published var thermalState = ""
-    @Published var iOSVersion = ""
-    @Published var userName = ""
-    @Published var modelName = ""
-    @Published var brightness = ""
-    @Published var build = ""
-    @Published var processId = ""
-    @Published var processName = ""
-    @Published var cpu = ""
-    @Published var batteryLevel = ""
-    @Published var batteryState = ""
-    @Published var isLowPowerEnabled = ""
+    @Published var allStorage = Constants.empty
+    @Published var freeStorage = Constants.empty
+    @Published var totalRamValue = Constants.empty
+    @Published var usedRamValue = Constants.empty
+    @Published var cores = Constants.empty
+    @Published var activeCores = Constants.empty
+    @Published var lastRestartTime = Constants.empty
+    @Published var thermalState = Constants.empty
+    @Published var iOSVersion = Constants.empty
+    @Published var userName = Constants.empty
+    @Published var modelName = Constants.empty
+    @Published var chipName = Constants.empty
+    @Published var frequency = Constants.empty
+    @Published var brightness = Constants.empty
+    @Published var build = Constants.empty
+    @Published var processId = Constants.empty
+    @Published var processName = Constants.empty
+    @Published var cpu = Constants.empty
+    @Published var batteryLevel = Constants.empty
+    @Published var batteryState = Constants.empty
+    @Published var isLowPowerEnabled = Constants.empty
     
     private var cancellable: AnyCancellable?
-    private var formatter = MeasurementFormatter()
+    private let formatter = MeasurementFormatter()
     
     init() {
         UIDevice.current.isBatteryMonitoringEnabled = true
@@ -113,6 +116,7 @@ final class MonitoringModel: ObservableObject {
     }
     
     private func getSystemInfo() {
+        let deviceInfo = UIDevice().info
         let restartInterval = ProcessInfo.processInfo.systemUptime
         let formatter = DateComponentsFormatter()
         formatter.allowedUnits = [.hour, .minute, .second]
@@ -123,7 +127,9 @@ final class MonitoringModel: ObservableObject {
         self.lastRestartTime = lastRestartTime
         
         userName = ProcessInfo.processInfo.hostName
-        modelName = UIDevice().type.rawValue
+        modelName = deviceInfo.model
+        chipName = deviceInfo.chip
+        frequency = deviceInfo.frequency
     }
     
     private func getThermalInfo() {
@@ -245,34 +251,6 @@ final class MonitoringModel: ObservableObject {
         }
         
         isLowPowerEnabled = ProcessInfo.processInfo.isLowPowerModeEnabled ? "Вкл" : "Выкл"
-    }
-    
-    private func getModelName() -> String {
-        let name: String
-        var mib  = [CTL_HW, HW_MODEL]
-
-        // Max model name size not defined by sysctl. Instead we use io_name_t
-        // via I/O Kit which can also get the model name
-        var size = MemoryLayout<io_name_t>.size
-
-        let ptr    = UnsafeMutablePointer<io_name_t>.allocate(capacity: 1)
-        let result = sysctl(&mib, u_int(mib.count), ptr, &size, nil, 0)
-
-
-        if result == 0 { name = String(cString: UnsafeRawPointer(ptr).assumingMemoryBound(to: CChar.self)) }
-        else           { name = String() }
-
-
-        ptr.deallocate()
-
-        #if DEBUG
-            if result != 0 {
-                print("ERROR - \(#file):\(#function) - errno = "
-                        + "\(result)")
-            }
-        #endif
-
-        return name
     }
     
     private func getScreenBrightness() {

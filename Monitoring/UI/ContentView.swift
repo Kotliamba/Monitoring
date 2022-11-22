@@ -36,6 +36,8 @@ struct ContentView: View {
                     }
                     Section("CPU") {
                         VStack {
+                            InfoCell(title: "Процессор", value: monitoringModel.chipName)
+                            InfoCell(title: "Максимальная частота", value: monitoringModel.frequency)
                             InfoCell(title: "Всего ядер", value: monitoringModel.cores)
                             InfoCell(title: "Активно ядер", value: monitoringModel.activeCores)
                             InfoCell(title: "Загруженность процессора", value: monitoringModel.cpu)
