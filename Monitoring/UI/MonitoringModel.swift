@@ -49,10 +49,6 @@ final class MonitoringModel: ObservableObject {
         updateData()
     }
     
-    func enablePublishing() {
-        setupPublisher()
-    }
-    
     func updateData() {
         getStorage()
         getRamValue()
@@ -70,10 +66,23 @@ final class MonitoringModel: ObservableObject {
         cancellable?.cancel()
     }
     
+    func enablePublishing() {
+        if (cancellable != nil) {
+            cancellable = nil
+        } else {
+            cancellable = Timer
+                .publish(every: Constants.publishDelay, on: .main, in: .common)
+                .autoconnect()
+                .sink { [weak self] _ in
+                    self?.updateData()
+                }
+        }
+    }
+    
     private func getStorage() {
         guard
-            let totalSpaceInBytes = FileManagerUility.getFileSize(for: .systemSize),
-            let freeSpaceInBytes = FileManagerUility.getFileSize(for: .systemFreeSize)
+            let totalSpaceInBytes = FileManagerUtility.getFileSize(for: .systemSize),
+            let freeSpaceInBytes = FileManagerUtility.getFileSize(for: .systemFreeSize)
         else {
             return
         }
@@ -221,19 +230,6 @@ final class MonitoringModel: ObservableObject {
         formatter.numberFormatter.roundingMode = .up
     }
     
-    private func setupPublisher() {
-        if (cancellable != nil) {
-            cancellable = nil
-        } else {
-            cancellable = Timer
-                .publish(every: Constants.publishDelay, on: .main, in: .common)
-                .autoconnect()
-                .sink { [weak self] _ in
-                    self?.updateData()
-                }
-        }
-    }
-    
     private func getBatteryInfo() {
         batteryLevel = (UIDevice.current.batteryLevel * 100).formatted() + Constants.percent
         
@@ -258,7 +254,7 @@ final class MonitoringModel: ObservableObject {
     }
 }
 
-struct FileManagerUility {
+struct FileManagerUtility {
     
     static func getFileSize(for key: FileAttributeKey) -> Double? {
         let paths = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)

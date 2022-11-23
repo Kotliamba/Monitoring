@@ -69,6 +69,7 @@ struct ContentView: View {
                     .onChange(of: isToggleOn) { _ in monitoringModel.enablePublishing() }
                     .onAppear { monitoringModel.updateData() }
                 }
+                .padding(.bottom, 20)
             }
         }
         .padding(.horizontal, 20)

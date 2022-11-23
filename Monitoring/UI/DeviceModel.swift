@@ -306,7 +306,12 @@ extension UIDevice {
             case "iPhone14,5",
                 "iPhone14,4",
                 "iPhone14,2",
-                "iPhone14,3":                               return ["A15":"2x3.22 GHz"]
+                "iPhone14,3",
+                "iPhone14,6":                               return ["A15":"2x3.22 GHz"]
+            case "iPhone14,7",
+                "iPhone14,8",
+                "iPhone15,2",
+                "iPhone15,3":                               return ["A16":"2x3.46 GHz"]
                 //            ipad
             case "iPad2,1", "iPad2,2", "iPad2,3", "iPad2,4":return ["A5":"1.0 GHz"]
             case "iPad3,1", "iPad3,2", "iPad3,3":           return ["A5X":"1.0 GHz"]
